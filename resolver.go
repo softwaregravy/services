@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"strconv"
+	"strings"
 )
 
 // The Resolver interface abstracts the concept of translating a service name
@@ -61,7 +62,7 @@ func (r resolver) Lookup(ctx context.Context, name string) (string, error) {
 		return "", err
 	}
 
-	host := srv[0].Target
+	host := strings.TrimSuffix(srv[0].Target, ".")
 	port := strconv.Itoa(int(srv[0].Port))
 	return net.JoinHostPort(host, port), nil
 }
