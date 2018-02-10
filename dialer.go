@@ -84,7 +84,12 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 			resolver = DefaultResolver
 		}
 
-		if address, err = resolver.Lookup(ctx, nameOnly(address)); err != nil {
+		target, err := resolver.Lookup(ctx, nameOnly(address))
+		switch {
+		case err == nil:
+			address = target
+		case isUnreachable(err):
+		default:
 			return nil, err
 		}
 	}
@@ -98,7 +103,8 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 		KeepAlive:     d.KeepAlive,
 	}
 
-	return dialer.DialContext(ctx, network, address)
+	conn, err := dialer.DialContext(ctx, network, address)
+	return conn, wrapError(err)
 }
 
 func nameOnly(address string) string {

@@ -59,7 +59,7 @@ func (r resolver) Lookup(ctx context.Context, name string) (string, error) {
 
 	_, srv, err := rslv.LookupSRV(ctx, "", "", name)
 	if err != nil {
-		return "", err
+		return "", wrapError(err)
 	}
 
 	host := strings.TrimSuffix(srv[0].Target, ".")
