@@ -8,14 +8,8 @@ import (
 
 // A Dialer contains options for connecting to an address.
 //
-// Dialer differs from the standard library's dialer by using SRV requests on
-// the resolver instead of regular host lookups. It makes it possible to plug
-// regular code into service discovery systems that expose the address and port
-// of available services in the result of SRV requests.
-//
-// If the resolver fails to return SRV records the dialer falls back to a
-// regular lookup and uses the port number provided in the address to its
-// dial methods.
+// Dialer differs from the standard library's dialer by using a custom resolver
+// to translate service names into network addresses.
 //
 // The zero value for each field is equivalent to dialing without that option.
 // Dialing with the zero value of Dialer is therefore equivalent to just calling
@@ -81,14 +75,18 @@ func (d *Dialer) Dial(network, address string) (net.Conn, error) {
 //
 // See https://golang.org/pkg/net/#Dialer.DialContext for more details.
 func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	resolver := d.Resolver
-	if resolver == nil {
-		resolver = DefaultResolver
-	}
+	host, _, err := net.SplitHostPort(address)
 
-	address, err := resolver.Lookup(ctx, nameOnly(address))
-	if err != nil {
-		return nil, err
+	if err != nil || net.ParseIP(host) == nil {
+		resolver := d.Resolver
+
+		if resolver == nil {
+			resolver = DefaultResolver
+		}
+
+		if address, err = resolver.Lookup(ctx, nameOnly(address)); err != nil {
+			return nil, err
+		}
 	}
 
 	dialer := net.Dialer{
