@@ -41,7 +41,7 @@ import (
 func main() {
     r := services.NewResolver(nil)
 
-    a, err := r.Lookup(ctx, os.Args[1])
+    a, err := r.Resolve(ctx, os.Args[1])
     if err != nil {
         fmt.Println(err)
         os.Exit(1)

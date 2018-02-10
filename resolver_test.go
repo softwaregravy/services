@@ -38,7 +38,7 @@ func TestResolver(t *testing.T) {
 	})
 
 	for i := 0; i != 10; i++ {
-		addr, err := r.Lookup(context.Background(), "whatever")
+		addr, err := r.Resolve(context.Background(), "whatever")
 		if err != nil {
 			t.Error(err)
 		}

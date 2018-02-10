@@ -18,8 +18,11 @@ import (
 // implement it don't even need to take a dependency on this package in order to
 // satisfy the interface, making code built around this interface very flexible
 // and easily decoupled of the service discovery backend being used.
+//
+// Resolver implementations must be safe to use concurrently from multiple
+// goroutines.
 type Resolver interface {
-	// Lookup takes a service name as argument and returns an address at which
+	// Resolve takes a service name as argument and returns an address at which
 	// the service can be reached.
 	//
 	// The returned address must be a pair of an address and a port.
@@ -31,13 +34,13 @@ type Resolver interface {
 	//
 	// The context can be used to asynchronously cancel the service name
 	// resolution when it involves blocking operations.
-	Lookup(ctx context.Context, name string) (addr string, err error)
+	Resolve(ctx context.Context, name string) (addr string, err error)
 }
 
 // NewResolver returns a value implementing the Resolver interface using the
 // given standard resolver.
 //
-// Service lookup uses LookupSRV method to resolve service names to addresses
+// Service name resolution uses LookupSRV method to translate names to addresses
 // made of the host name where they run and the port number at which they are
 // available.
 //
@@ -50,7 +53,7 @@ type resolver struct {
 	*net.Resolver
 }
 
-func (r resolver) Lookup(ctx context.Context, name string) (string, error) {
+func (r resolver) Resolve(ctx context.Context, name string) (string, error) {
 	rslv := r.Resolver
 
 	if rslv == nil {
@@ -69,4 +72,4 @@ func (r resolver) Lookup(ctx context.Context, name string) (string, error) {
 
 // DefaultResolver is the default service name resolver exposed by the services
 // package.
-var DefaultResolver Resolver = resolver{}
+var DefaultResolver Resolver = NewResolver(nil)

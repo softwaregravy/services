@@ -84,7 +84,7 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 			resolver = DefaultResolver
 		}
 
-		target, err := resolver.Lookup(ctx, nameOnly(address))
+		target, err := resolver.Resolve(ctx, nameOnly(address))
 		switch {
 		case err == nil:
 			address = target
