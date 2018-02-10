@@ -1,6 +1,6 @@
 # services  [![CircleCI](https://circleci.com/gh/segmentio/services.svg?style=shield)](https://circleci.com/gh/segmentio/services) [![Go Report Card](https://goreportcard.com/badge/github.com/segmentio/services)](https://goreportcard.com/report/github.com/segmentio/services) [![GoDoc](https://godoc.org/github.com/segmentio/services?status.svg)](https://godoc.org/github.com/segmentio/services)
 
-    *Go package providing building blocks to work with service discovery patterns.*
+*Go package providing building blocks to work with service discovery patterns.*
 
 ## Motivations
 
