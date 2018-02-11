@@ -11,8 +11,8 @@ import (
 // into an address at which it can be reached.
 //
 // The interface is voluntarily designed to solve the simplest use case, it does
-// not for the implementation to support for advanced features found in popular
-// service discovery backends, which maximizes compotiblity and composability.
+// not provide support for advanced features found in popular service discovery
+// backends, which maximizes compotiblity, composability, and performance.
 //
 // The single method of the interface also uses basic Go types, so types that
 // implement it don't even need to take a dependency on this package in order to
