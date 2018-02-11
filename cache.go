@@ -61,19 +61,19 @@ type CacheStats struct {
 // Note that because cache is safe to use concurrently from multiple goroutines,
 // cache statistics are eventually consistent and a snapshot may not reflect the
 // effect of concurrent utilization of the cache.
-func (cache *Cache) Stats() CacheStats {
+func (c *Cache) Stats() CacheStats {
 	return CacheStats{
-		Bytes:     atomic.LoadInt64(&cache.bytes),
-		Size:      atomic.LoadInt64(&cache.size),
-		Hits:      atomic.LoadInt64(&cache.hits),
-		Misses:    atomic.LoadInt64(&cache.misses),
-		Evictions: atomic.LoadInt64(&cache.evictions),
+		Bytes:     atomic.LoadInt64(&c.bytes),
+		Size:      atomic.LoadInt64(&c.size),
+		Hits:      atomic.LoadInt64(&c.hits),
+		Misses:    atomic.LoadInt64(&c.misses),
+		Evictions: atomic.LoadInt64(&c.evictions),
 	}
 }
 
 // Resolve satisfies the Resolver interface.
-func (cache *Cache) Resolve(ctx context.Context, name string) (string, error) {
-	index, addrs, _, err := cache.lookup(ctx, name)
+func (c *Cache) Resolve(ctx context.Context, name string) (string, error) {
+	index, addrs, _, err := c.lookup(ctx, name)
 	if err != nil {
 		return "", err
 	}
@@ -89,8 +89,8 @@ func (cache *Cache) Resolve(ctx context.Context, name string) (string, error) {
 }
 
 // Lookup satisfies the Registry interface.
-func (cache *Cache) Lookup(ctx context.Context, name string, tags ...string) ([]string, time.Duration, error) {
-	_, addrs, deadline, err := cache.lookup(ctx, name, tags...)
+func (c *Cache) Lookup(ctx context.Context, name string, tags ...string) ([]string, time.Duration, error) {
+	_, addrs, deadline, err := c.lookup(ctx, name, tags...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -105,28 +105,28 @@ func (cache *Cache) Lookup(ctx context.Context, name string, tags ...string) ([]
 	return copyStrings(addrs), ttl, err
 }
 
-func (cache *Cache) lookup(ctx context.Context, name string, tags ...string) (*uint64, []string, time.Time, error) {
+func (c *Cache) lookup(ctx context.Context, name string, tags ...string) (*uint64, []string, time.Time, error) {
 	tags = sortedStrings(tags)
 	key := makeCacheKey(name, tags)
 
 	for {
-		cache.mutex.Lock()
-		elem, hit := cache.items[key]
+		c.mutex.Lock()
+		elem, hit := c.items[key]
 		if hit {
-			cache.queue.MoveToFront(elem)
+			c.queue.MoveToFront(elem)
 		} else {
-			elem = cache.queue.PushFront(newCacheItem(key, tags))
-			if cache.items == nil {
-				cache.items = map[cacheKey]*list.Element{key: elem}
+			elem = c.queue.PushFront(newCacheItem(key, tags))
+			if c.items == nil {
+				c.items = map[cacheKey]*list.Element{key: elem}
 			} else {
-				cache.items[key] = elem
+				c.items[key] = elem
 			}
 		}
-		cache.mutex.Unlock()
+		c.mutex.Unlock()
 
 		item := elem.Value.(*cacheItem)
 		if !hit {
-			go item.lookup(cache.Registry, cache.minTTL(), cache.maxTTL())
+			go item.lookup(c.Registry, c.minTTL(), c.maxTTL())
 		}
 
 		select {
@@ -137,19 +137,19 @@ func (cache *Cache) lookup(ctx context.Context, name string, tags ...string) (*u
 
 		if time.Now().After(item.ttl) {
 			evict := false
-			cache.mutex.Lock()
+			c.mutex.Lock()
 			// Make sure another goroutine did not concurrently remove the
 			// item.
-			if evict = cache.items[key] == elem; evict {
-				cache.queue.Remove(elem)
-				delete(cache.items, key)
+			if evict = c.items[key] == elem; evict {
+				c.queue.Remove(elem)
+				delete(c.items, key)
 			}
-			cache.mutex.Unlock()
+			c.mutex.Unlock()
 
 			if evict {
-				atomic.AddInt64(&cache.bytes, -item.bytes)
-				atomic.AddInt64(&cache.size, -1)
-				atomic.AddInt64(&cache.evictions, +1)
+				atomic.AddInt64(&c.bytes, -item.bytes)
+				atomic.AddInt64(&c.size, -1)
+				atomic.AddInt64(&c.evictions, +1)
 				if hit {
 					// In case we had a cache miss, still let the code go
 					// through otherwise we may enture en infinite loop when the
@@ -161,31 +161,31 @@ func (cache *Cache) lookup(ctx context.Context, name string, tags ...string) (*u
 		}
 
 		if hit {
-			atomic.AddInt64(&cache.hits, +1)
+			atomic.AddInt64(&c.hits, +1)
 		} else {
-			atomic.AddInt64(&cache.size, +1)
-			atomic.AddInt64(&cache.misses, +1)
+			atomic.AddInt64(&c.size, +1)
+			atomic.AddInt64(&c.misses, +1)
 
-			bytes := atomic.AddInt64(&cache.bytes, +item.bytes)
-			maxBytes := int64(cache.maxBytes())
+			bytes := atomic.AddInt64(&c.bytes, +item.bytes)
+			maxBytes := int64(c.maxBytes())
 
 			for bytes > maxBytes {
-				cache.mutex.Lock()
+				c.mutex.Lock()
 
-				if len(cache.items) == 0 {
-					cache.mutex.Unlock()
+				if len(c.items) == 0 {
+					c.mutex.Unlock()
 					break
 				}
 
-				oldestElem := cache.queue.Back()
+				oldestElem := c.queue.Back()
 				oldestItem := oldestElem.Value.(*cacheItem)
-				cache.queue.Remove(oldestElem)
-				delete(cache.items, oldestItem.key)
-				cache.mutex.Unlock()
+				c.queue.Remove(oldestElem)
+				delete(c.items, oldestItem.key)
+				c.mutex.Unlock()
 
-				bytes = atomic.AddInt64(&cache.bytes, -oldestItem.bytes)
-				atomic.AddInt64(&cache.size, -1)
-				atomic.AddInt64(&cache.evictions, +1)
+				bytes = atomic.AddInt64(&c.bytes, -oldestItem.bytes)
+				atomic.AddInt64(&c.size, -1)
+				atomic.AddInt64(&c.evictions, +1)
 			}
 		}
 
@@ -193,22 +193,22 @@ func (cache *Cache) lookup(ctx context.Context, name string, tags ...string) (*u
 	}
 }
 
-func (cache *Cache) maxBytes() int64 {
-	if bytes := cache.MaxBytes; bytes > 0 {
+func (c *Cache) maxBytes() int64 {
+	if bytes := c.MaxBytes; bytes > 0 {
 		return int64(bytes)
 	}
 	return 1024 * 1024 // 1 MB
 }
 
-func (cache *Cache) minTTL() time.Duration {
-	if ttl := cache.MinTTL; ttl > 0 {
+func (c *Cache) minTTL() time.Duration {
+	if ttl := c.MinTTL; ttl > 0 {
 		return ttl
 	}
 	return 0
 }
 
-func (cache *Cache) maxTTL() time.Duration {
-	if ttl := cache.MaxTTL; ttl > 0 {
+func (c *Cache) maxTTL() time.Duration {
+	if ttl := c.MaxTTL; ttl > 0 {
 		return ttl
 	}
 	return time.Duration(math.MaxInt64)
