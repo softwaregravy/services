@@ -122,7 +122,7 @@ func testResolverFailure(t *testing.T, newResolver newResolverFunc) {
 	for i := 0; i != 10; i++ {
 		_, err := resolver.Resolve(context.Background(), "whatever")
 		if !isUnreachable(err) {
-			t.Error("expected an unreachable error but got %#v (%s)", err, err)
+			t.Errorf("expected an unreachable error but got %#v (%s)", err, err)
 		}
 	}
 }
