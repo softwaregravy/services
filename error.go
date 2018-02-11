@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"net"
 	"os"
 	"strings"
@@ -27,18 +28,45 @@ type wrappedError struct {
 	cause error
 }
 
-func (e *wrappedError) Cause() error      { return e.cause }
-func (e *wrappedError) Error() string     { return e.cause.Error() }
-func (e *wrappedError) Timeout() bool     { return isTimeout(e.cause) }
-func (e *wrappedError) Temporary() bool   { return isTemporary(e.cause) }
+func (e *wrappedError) Cause() error { return e.cause }
+
+func (e *wrappedError) Error() string { return e.cause.Error() }
+
+func (e *wrappedError) Canceled() bool { return isCanceled(e.cause) }
+
+func (e *wrappedError) Timeout() bool { return isTimeout(e.cause) }
+
+func (e *wrappedError) Temporary() bool { return isTemporary(e.cause) }
+
 func (e *wrappedError) Unreachable() bool { return isUnreachable(e.cause) }
-func (e *wrappedError) Validation() bool  { return isValidation(e.cause) }
+
+func (e *wrappedError) Validation() bool { return isValidation(e.cause) }
 
 func wrapError(err error) error {
 	if err == nil {
 		return err
 	}
 	return &wrappedError{cause: err}
+}
+
+func isCanceled(err error) bool {
+	if err != nil {
+		switch e := err.(type) {
+		case *net.DNSError:
+			return isCanceledDNSError(e)
+		case *net.OpError:
+			return isCanceled(e.Err)
+		case errorCause:
+			return isCanceled(e.Cause())
+		default:
+			return err == context.Canceled
+		}
+	}
+	return false
+}
+
+func isCanceledDNSError(e *net.DNSError) bool {
+	return strings.HasSuffix(e.Err, ": operation was canceled")
 }
 
 func isTemporary(err error) bool {

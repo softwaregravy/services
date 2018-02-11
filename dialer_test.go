@@ -1,16 +1,11 @@
 package services
 
 import (
-	"context"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
-	"strings"
 	"testing"
-
-	"github.com/miekg/dns"
 )
 
 func TestDialer(t *testing.T) {
@@ -50,44 +45,23 @@ func testDialerWithResolver(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, port, _ := net.SplitHostPort(strings.TrimPrefix(server.URL, "http://"))
-	portNumber, _ := strconv.Atoi(port)
-
-	s := dnsServer(func(w dns.ResponseWriter, r *dns.Msg) {
-		a := &dns.Msg{}
-		a.SetReply(r)
-		a.Authoritative = true
-		a.RecursionAvailable = true
-		a.Answer = append(a.Answer, &dns.SRV{
-			Hdr: dns.RR_Header{
-				Name:   r.Question[0].Name,
-				Rrtype: dns.TypeSRV,
-				Class:  dns.ClassINET,
-				Ttl:    10,
-			},
-			Priority: 1,
-			Weight:   1,
-			Port:     uint16(portNumber),
-			Target:   "localhost.",
-		})
-		w.WriteMsg(a)
+	resolver, close := dnsResolver(map[string][]string{
+		"service": {server.URL[7:]},
 	})
-	defer s.Shutdown()
+	defer close()
 
-	c := &http.Client{
-		Transport: &http.Transport{
-			DialContext: (&Dialer{
-				Resolver: NewResolver(&net.Resolver{
-					PreferGo: true,
-					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-						return (&net.Dialer{}).DialContext(ctx, s.Net, s.Addr)
-					},
-				}),
-			}).DialContext,
-		},
+	transport := &http.Transport{
+		DialContext: (&Dialer{
+			Resolver: resolver,
+		}).DialContext,
+	}
+	defer transport.CloseIdleConnections()
+
+	client := &http.Client{
+		Transport: transport,
 	}
 
-	r, err := c.Get("http://service/")
+	r, err := client.Get("http://service/")
 	if err != nil {
 		t.Error(err)
 		return
