@@ -40,3 +40,43 @@ type Registry interface {
 	// involves blocking operations.
 	Lookup(ctx context.Context, name string, tags ...string) (addrs []string, ttl time.Duration, err error)
 }
+
+// Prefer decorates the registry to prefer exposing services with tags matching
+// those passed as arguments.
+//
+// The perference is achieved by adding the first tag to the lookup operations,
+// if it returns no results the lookup is retried with the second tag, etc...
+//
+// If none of the lookup operation returned any results the registry falls back
+// to trying without any of the preferred tags.
+func Prefer(base Registry, tags ...string) Registry {
+	return &prefer{
+		base: base,
+		tags: copyStrings(tags),
+	}
+}
+
+type prefer struct {
+	base Registry
+	tags []string
+}
+
+func (p *prefer) Lookup(ctx context.Context, name string, tags ...string) ([]string, time.Duration, error) {
+	tagsBuffer := make([]string, len(tags)+1)
+	copy(tagsBuffer, tags)
+
+	for _, preferredTag := range p.tags {
+		if err := ctx.Err(); err != nil {
+			return nil, 0, err
+		}
+
+		tagsBuffer[len(tags)] = preferredTag
+		addrs, ttl, err := p.base.Lookup(ctx, name, tagsBuffer...)
+
+		if len(addrs) != 0 {
+			return addrs, ttl, err
+		}
+	}
+
+	return p.base.Lookup(ctx, name, tags...)
+}
