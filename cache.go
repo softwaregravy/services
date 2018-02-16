@@ -106,6 +106,10 @@ func (c *Cache) Lookup(ctx context.Context, name string, tags ...string) ([]stri
 }
 
 func (c *Cache) lookup(ctx context.Context, name string, tags ...string) (*uint64, []string, time.Time, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, time.Time{}, err
+	}
+
 	tags = sortedStrings(tags)
 	key := makeCacheKey(name, tags)
 

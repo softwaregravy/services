@@ -123,7 +123,7 @@ func isUnreachableDNSError(e *net.DNSError) bool {
 }
 
 func isUnreachableErrno(e syscall.Errno) bool {
-	return e == syscall.ECONNABORTED || e == syscall.ECONNREFUSED || e == syscall.ECONNRESET
+	return e == syscall.EADDRNOTAVAIL || e == syscall.ECONNABORTED || e == syscall.ECONNREFUSED || e == syscall.ECONNRESET
 }
 
 func isValidation(err error) bool {
